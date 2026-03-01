@@ -1,4 +1,4 @@
-# TAV — Topology-Aware Vector Routing
+# TAV: Topology-Aware Vector Routing
 
 Hierarchical semantic search for PDFs. Extracts document structure (chapters → sections → paragraphs), embeds each level with topology-weighted vectors, and runs a 3-pass zoom search: chapters first, then sections within winners, then paragraphs.
 
