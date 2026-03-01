@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Env
+.env
+.venv/
+venv/
+
+AGENTS.md
+.agents/
+
+# TAV indices
+.tav_index_*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
