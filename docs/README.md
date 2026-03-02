@@ -50,6 +50,7 @@ pip install -e ".[postgres,mongo,app]"
 ```
 
 For OpenAI embeddings, set `OPENAI_API_KEY` in a `.env` file at the project root.
+For S3 ingestion, you can also set `TAV_S3_PATH` plus standard AWS vars (`AWS_REGION`, `AWS_PROFILE`, and optional `AWS_ENDPOINT_URL_S3`).
 
 ---
 
@@ -59,25 +60,37 @@ TAV installs as a `tav` command with two subcommands.
 
 ### `tav index`
 
-Parse a PDF and build the vector index.
+Parse a local PDF or an S3 prefix and build the vector index.
 
 ```bash
-tav index --pdf_path <path> [options]
+tav index [--pdf_path <path> | --s3_path s3://bucket/prefix] [options]
 ```
 
-| Flag            | Default            | Description                                        |
-| --------------- | ------------------ | -------------------------------------------------- |
-| `--pdf_path`    | (required)         | Path to the PDF file                               |
-| `--embed_model` | `all-MiniLM-L6-v2` | `"openai"` or any sentence-transformers model name |
-| `--weights`     | `0.7,0.2,0.1`      | Topology weights: paragraph, section, chapter      |
-| `--store`       | `file`             | Storage backend: `file`, `postgres`, `mongo`       |
-| `--store_uri`   | `None`             | Connection URI (or set `TAV_STORE_URI` env var)    |
+| Flag                | Default            | Description                                                     |
+| ------------------- | ------------------ | --------------------------------------------------------------- |
+| `--pdf_path`        | `None`             | Local PDF path (mutually exclusive with `--s3_path`)            |
+| `--s3_path`         | `None`             | S3 prefix `s3://bucket/prefix` (or set `TAV_S3_PATH` in `.env`) |
+| `--doc_name`        | auto               | Optional document name override                                 |
+| `--output_dir`      | `.`                | Output directory for local file-store indices                   |
+| `--embed_model`     | `all-MiniLM-L6-v2` | `"openai"` or any sentence-transformers model name              |
+| `--weights`         | `0.7,0.2,0.1`      | Topology weights: paragraph, section, chapter                   |
+| `--store`           | `file`             | Storage backend: `file`, `postgres`, `mongo`                    |
+| `--store_uri`       | `None`             | Connection URI (or set `TAV_STORE_URI` env var)                 |
+| `--aws_region`      | env                | AWS region override                                             |
+| `--aws_profile`     | env                | AWS profile override                                            |
+| `--s3_endpoint_url` | env                | Optional custom S3 endpoint (e.g., MinIO)                       |
 
 Examples:
 
 ```bash
 # Local file store (default)
 tav index --pdf_path textbook.pdf
+
+# Local file store to a chosen folder
+tav index --pdf_path textbook.pdf --output_dir ./indexes
+
+# S3 prefix ingest (all PDFs under prefix)
+tav index --s3_path s3://my-bucket/course-notes/
 
 # OpenAI embeddings
 tav index --pdf_path textbook.pdf --embed_model openai
@@ -94,29 +107,34 @@ tav index --pdf_path textbook.pdf --weights 0.6,0.3,0.1
 
 ### `tav query`
 
-Search an indexed PDF.
+Search an indexed document.
 
 ```bash
-tav query --pdf_path <path> --query <text> [options]
+tav query --query <text> [--pdf_path <path> | --doc_name <name>] [options]
 ```
 
-| Flag                   | Default    | Description                        |
-| ---------------------- | ---------- | ---------------------------------- |
-| `--pdf_path`           | (required) | Path to the original PDF           |
-| `--query`              | (required) | Search query text                  |
-| `--k_chapters`         | `3`        | Top-K chapters in level 1          |
-| `--k_sections`         | `5`        | Top-K sections in level 2          |
-| `--k_paragraphs`       | `10`       | Top-K paragraphs in level 3        |
-| `--max_context_tokens` | `8000`     | Token budget for assembled context |
-| `--json_output`        | `false`    | Print machine-readable JSON output |
-| `--store`              | `file`     | Storage backend                    |
-| `--store_uri`          | `None`     | Connection URI                     |
+| Flag                   | Default    | Description                                      |
+| ---------------------- | ---------- | ------------------------------------------------ |
+| `--pdf_path`           | `None`     | Source local PDF path (used to derive doc name)  |
+| `--doc_name`           | `None`     | Indexed document name (use for S3-ingested docs) |
+| `--output_dir`         | `.`        | Directory used for local file-store lookups      |
+| `--query`              | (required) | Search query text                                |
+| `--k_chapters`         | `3`        | Top-K chapters in level 1                        |
+| `--k_sections`         | `5`        | Top-K sections in level 2                        |
+| `--k_paragraphs`       | `10`       | Top-K paragraphs in level 3                      |
+| `--max_context_tokens` | `8000`     | Token budget for assembled context               |
+| `--json_output`        | `false`    | Print machine-readable JSON output               |
+| `--store`              | `file`     | Storage backend                                  |
+| `--store_uri`          | `None`     | Connection URI                                   |
 
 Examples:
 
 ```bash
 # Basic query
 tav query --pdf_path textbook.pdf --query "how does garbage collection work"
+
+# Query by explicit document name (useful for S3 ingest)
+tav query --doc_name my_bucket_course_notes --query "garbage collection"
 
 # Narrow search, JSON output
 tav query --pdf_path textbook.pdf --query "page tables" \
@@ -205,11 +223,10 @@ results = store.search_vectors(         # Direct vector search
 
 ### File (default)
 
-Stores FAISS binary files + JSON metadata alongside the PDF.
+Stores FAISS binary files + JSON metadata under `--output_dir` (default: current working directory).
 
 ```
-/path/to/document.pdf
-/path/to/.tav_index_document/
+./.tav_index_document/
     chapter.faiss
     section.faiss
     paragraph.faiss
@@ -261,6 +278,7 @@ store = get_store("mongo", uri="mongodb://localhost:27017", atlas_vector_index=N
 ```
 tav/
 ├── structural_parser.py   # PDF → hierarchy tree (Node dataclass)
+├── s3_ingest.py           # S3 prefix PDF discovery + download helpers
 ├── embedder.py            # Tree → topology-weighted embeddings + FAISS indices
 ├── search.py              # 3-pass semantic zoom search
 ├── context_retriever.py   # Expand results into token-budgeted context blocks

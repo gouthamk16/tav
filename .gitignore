@@ -13,6 +13,7 @@ venv/
 
 AGENTS.md
 .agents/
+.pdf*
 
 # TAV indices
 .tav_index_*/

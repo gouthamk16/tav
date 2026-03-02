@@ -25,6 +25,9 @@ tav index --pdf_path document.pdf
 
 # Query it
 tav query --pdf_path document.pdf --query "how does memory management work"
+
+# Index all PDFs under an S3 prefix (or set TAV_S3_PATH in .env)
+tav index --s3_path s3://my-bucket/my-prefix
 ```
 
 ## Store backends
@@ -37,7 +40,17 @@ tav index --pdf_path doc.pdf --store postgres --store_uri "postgresql://user:pas
 
 # MongoDB
 tav index --pdf_path doc.pdf --store mongo --store_uri "mongodb://host:27017"
+
+# Local file store output location (default: current working directory)
+tav index --pdf_path doc.pdf --output_dir ./indexes
 ```
+
+For S3 ingestion, configure AWS credentials/region in `.env` (or your environment) and optionally set:
+
+- `TAV_S3_PATH=s3://bucket/prefix`
+- `AWS_REGION=us-east-1`
+- `AWS_PROFILE=default`
+- `AWS_ENDPOINT_URL_S3=http://localhost:9000` (optional S3-compatible endpoint)
 
 ## Python API
 
